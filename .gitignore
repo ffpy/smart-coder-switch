@@ -1,0 +1,53 @@
+# Build outputs
+/smart-coder-switch
+/dist/
+*.exe
+*.test
+*.out
+
+# Test and coverage outputs
+/coverage/
+coverage.out
+*.coverprofile
+
+# Runtime data
+*.log
+*.pid
+
+# Local configuration
+/config.yaml
+config.local.yaml
+config.*.local.yaml
+.env
+.env.*
+!.env.example
+
+# Temporary files
+/tmp/
+/e2e.mjs
+*.tmp
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Frontend build output
+web/frontend/dist/
+internal/web/dist/
+web/frontend/node_modules/
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Runtime trace and log data
+log/
+
+# Legacy runtime directory
+data/
+
+.kandev/
