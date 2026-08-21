@@ -18,6 +18,37 @@ flowchart LR
     Switch --> Provider["上游 Provider(如OpenAI)<br>实际模型"]
 ```
 
+### 与 CLIProxyAPI 搭配使用
+
+Smart Coder Switch 可以与 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 串联使用。Smart Coder Switch 负责根据请求阶段选择 LOW、MEDIUM、HIGH 或 DIRECT 档位，CLIProxyAPI 负责把这些模型请求转发到对应的提供商或账号。这样客户端仍然只需要连接一个入口，就可以按档位使用不同来源的模型，例如 Codex、Claude、OpenCode Go 或其他中转站。
+
+```mermaid
+flowchart LR
+    Client["AI 编程客户端<br/>只填写一个逻辑模型"] --> Switch["Smart Coder Switch<br/>按档位路由与提示注入"]
+    Switch -->|LOW: deepseek| Proxy["CLIProxyAPI<br/>统一兼容 API 入口"]
+    Switch -->|MEDIUM / HIGH: gpt| Proxy
+    Switch -->|DIRECT: claude| Proxy
+    Proxy --> Codex["Codex"]
+    Proxy --> Claude["Claude"]
+    Proxy --> OpenCode["OpenCode Go"]
+    Proxy --> Relay["中转站 / 其他提供商"]
+```
+
+一种典型的分档策略如下：
+
+| Smart Coder Switch 档位 | 逻辑模型示例 | CLIProxyAPI 或提供商侧的目标 |
+| --- | --- | --- |
+| LOW | `deepseek` | DeepSeek，处理日常任务 |
+| MEDIUM | `gpt` | Codex 或其他 GPT 提供商 |
+| HIGH | `gpt` | 更强的 GPT 模型，处理复杂阶段 |
+| DIRECT | `claude` | Claude，处理新任务入口或需要强方向判断的请求 |
+
+这里的 `deepseek`、`gpt` 和 `claude` 只是示例名称，实际名称应以 CLIProxyAPI 暴露的模型名和配置为准。Smart Coder Switch 的 `upstream.base-url` 指向 CLIProxyAPI 的兼容 API 地址，并在模型映射中填写 CLIProxyAPI 可识别的模型名即可；CLIProxyAPI 的安装、认证、提供商配置和模型命名请以其[官方文档](https://github.com/router-for-me/CLIProxyAPI)为准。
+
+该组合将职责分开：Smart Coder Switch 决定“这次请求应该使用哪个档位和模型”，CLIProxyAPI 决定“这个模型最终由哪个提供商或账号承载”。如果只使用单一上游，也可以不部署 CLIProxyAPI，直接将 Smart Coder Switch 连接到上游 Provider。
+
+## 支持 OpenAI 兼容接口：
+
 支持 OpenAI 兼容接口：
 
 - `POST /v1/chat/completions`

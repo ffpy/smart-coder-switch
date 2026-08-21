@@ -1,223 +1,87 @@
-# Smart Coder Switch 示例配置。
+# Smart Coder Switch 示例配置
 #
 # 快速开始：
-#
-#   1. 复制为 config.yaml
-#   2. 填写 upstream.base-url 和实际模型名
-#   3. 启动 smart-coder-switch
-#
-# Windows 用户可直接运行 smart-coder-switch.exe。
-# 首次启动会自动创建 log、log/traces 和 data 目录。
-#
-# 注意：
-#
-# 1. listen.address 不能热重载，修改后必须重启进程。
-# 2. Authorization 请求头会原样转发给上游。
-# 3. 支持 POST /v1/chat/completions 和 /v1/responses。
-
-# 系统注入消息过滤前缀（可选）。
-#
-# 用于识别 OpenCode 等 AI 编程工具注入的系统消息。
-# 当最后一条用户消息以列表中任一前缀开头时，
-# 不触发 direct-model 的 DIRECT 路由。
-#
-# 默认值（未配置时自动启用）：
-#   - <system-reminder>
-#   - [Compressed conversation section]
-#
-# 留空列表（ignored-user-input-prefixes: []）表示不做任何前缀过滤。
-# ignored-user-input-prefixes:
-#   - <system-reminder>
-#   - [Compressed conversation section]
+# 1. 复制本文件为 config.yaml
+# 2. 修改 upstream.base-url 和 models.smart-coder 中的模型名
+# 3. 启动 smart-coder-switch
 
 # HTTP 服务监听配置。
 listen:
-  # 服务监听地址。
-  #
-  # 0.0.0.0 表示允许其他机器访问。
-  # 127.0.0.1 表示只允许本机访问。
-  #
-  # 修改该字段后必须重启服务。
-  address: 0.0.0.0:18082
+  # 只允许本机访问；需要远程访问时再改为 0.0.0.0:18082，
+  # 并配合防火墙或反向代理增加认证。
+  address: 127.0.0.1:18082
 
-# 日志配置。
-#
-# 注意：日志配置不在热重载范围内，
-# 修改后需要重启进程。
-log:
-  # 日志文件路径。
-  #
-  # 未设置时只输出到标准错误。
-  # 设置后同时输出到文件和标准错误。
-  # 父目录不存在时会自动创建。
-  file: ./log/smart-coder-switch.log
-
-  # 日志级别。
-  #
-  # 可选值：debug, info, warn, error
-  # 默认值：info
-  level: info
-
-# OpenAI Chat Completions 兼容上游。
+# OpenAI 兼容上游配置。
 upstream:
-  # 上游 API 根地址。
-  #
-  # 请求会转发到：
-  #
-  #   <base-url>/v1/chat/completions
-  #
-  # 建议以 / 结尾。
-  base-url: https://one-api.example.com/
+  # CLIProxyAPI 的兼容 API 地址示例。
+  # 也可以直接填写其他 OpenAI 兼容 Provider 地址。
+  base-url: http://127.0.0.1:8317/
 
-  # 上游请求超时（秒）。
-  #
-  # 0 或省略表示不超时。
-  # 只对响应头超时，不影响流式响应的持续传输。
+  # 上游请求超时（秒）。0 或省略表示不超时；不影响已建立的流式响应。
   timeout: 300
 
 # 逻辑模型映射。
 #
-# 客户端填写 smart-coder。
-# 默认推荐使用固定轮次切换；概率字段设为 0 即可关闭随机切换。
-#
-# 主要特性：
-#   - 按轮次切换 low-model / medium-model / high-model 模型
-#   - HIGH 自动注入复盘 Prompt
-#   - DIRECT 自动注入首轮说明 Prompt
-#   - 可选图片理解提示和请求 Trace
-#
-#   - medium-probability / high-probability：可选的随机切换概率
-#
-# 每个逻辑模型独立配置。
+# 推荐示例：
+# - LOW：deepseek，处理日常任务
+# - MEDIUM / HIGH：gpt，处理需要更强能力的阶段
+# - DIRECT：claude，新任务入口先由强模型判断方向
 models:
   smart-coder:
-    # 低档模型（默认使用）
-    #
-    # 低档概率由余量决定：1 - medium-probability - high-probability
     low-model: deepseek-v4-flash
-
-    # 中档模型（medium-probability 概率命中时使用）
-    medium-model: deepseek-v4-flash
-
-    # 中档概率。
-    #
-    # 取值范围 [0, 1]。
-    # 与 high-probability 之和不能超过 1。
-    # 必填，没有代码默认值。启动和热重载时校验。
-    medium-probability: 0.10
-
-    # 高档模型（high-probability 概率命中时使用）
-    # 命中时自动注入阶段感知复盘 Prompt：PLAN 或阶段不明时可只读排查、
-    # 不实施；BUILD 时才输出复盘并可继续执行。
-    high-model: glm-5
-
-    # 高档概率。
-    #
-    # 取值范围 [0, 1]。
-    # 与 medium-probability 之和不能超过 1。
-    # 必填，没有代码默认值。启动和热重载时校验。
-    high-probability: 0.01
-    # HIGH 固定轮次触发（可选）。
-    #
-    # 当 messages 中 assistant 消息数量能被该值整除时，强制路由到 HIGH 模型。
-    # 与 high-probability 并存：固定轮次优先于概率判定。
-    # 不配置或配置为 0 时禁用固定轮次触发。
-    # high-rounds: 10
-
-    # MEDIUM 固定轮次触发（可选）。
-    #
-    # 当 messages 中 assistant 消息数量能被该值整除且未命中 HIGH 固定轮次时，
-    # 强制路由到 MEDIUM 模型。
-    # MEDIUM 固定轮次只改模型，不注入 review 提示。
-    # 不配置或配置为 0 时禁用固定轮次触发。
-    # medium-rounds: 5
-
-
-    # 最新用户消息强制路由（可选）。
-    #
-    # 当对话最新一条消息 role=user 且内容不为系统注入消息时，
-    # 强制使用该实际模型名。
-    # 用于在新任务入口用强模型做方向判断。
-    # 不配置此项时保持原有概率判定，不受影响。
-    # direct-model: gpt-5.6-terra
-
-    # DIRECT 阶段感知首轮说明提示开关（可选）。
-    #
-    # 仅当配置了 direct-model 时生效。
-    # 未配置时默认为 true（启用）。
-    #
-    # 启用（true 或缺省）时，DIRECT 命中后自动追加临时提示：
-    #   要求强模型先判断 PLAN 或 BUILD：PLAN 或阶段不明时可只读排查、
-    #   澄清或维护计划 Markdown，不实施；BUILD 时才先说明理解、判断
-    #   与拟采取动作，并可按用户请求调用工具或执行操作。
-    #   说明会保留在会话历史中，供后续 LOW/MEDIUM 接手参考。
-    #
-    # 显式关闭（false）时，DIRECT 只改模型，不注入提示。
-    #   若最新一条 AI 消息文本含【Review】或【Plan】，仍会追加防复述指令。
-    #
-    # direct-prompt-enabled: true
-
-    # 防复述注入开关（可选）。
-    #
-    # 当 LOW/MEDIUM/DIRECT 档命中时，若最新一条 AI 消息的文本中包含
-    # 【Review】或【Plan】标记，代理会追加一条防复述指令，要求直接执行
-    # 历史指导、避免机械复述。只检查最新一条 assistant 消息，更早的历史
-    # 标记不触发。未配置时默认为 false（禁用）。
-    #
-    # 显式开启（true）时，满足标记条件的请求会追加防复述内容。
-    #
-    # anti-repetition-prompt-enabled: false
-
-    # 图片理解提示注入开关（可选）。
-    #
-    # 仅当配置了 direct-model 且最新用户消息包含图片
-    # （type=image_url）时生效。未配置时默认为 true（启用）。
-    #
-    # 启用（true 或缺省）时，DIRECT 命中后注入合并提示：图片理解段落
-    # （OCR 提取 + 视觉描述 + 结构化输出，供后续不支持多模态输入的模型
-    # 继续接手处理）与首轮说明提示合并为单条 user 消息，并带统一包裹标注。
-    #
-    # 显式关闭（false）时，有图片的 DIRECT 请求退回普通首轮说明提示，
-    # 不注入图片理解段落。
-    #
-    # image-prompt-enabled: true
-
-  coder2:
-    low-model: gpt-5.6-luna
-    medium-model: gpt-5.6-luna
-    medium-probability: 0.10
+    medium-model: gpt-5.6-terra
     high-model: gpt-5.6-terra
-    high-probability: 0.01
-    # direct-model: gpt-5.6-terra
-    # direct-prompt-enabled: true
-    # anti-repetition-prompt-enabled: true
-    # image-prompt-enabled: true
+    direct-model: claude-sonnet-4-6
 
-# 原始请求和路由决策 Trace（始终启用，不可关闭）。
+    # 概率路由默认关闭，便于复现和理解路由结果。
+    # 取值范围 [0, 1]；两者之和不能超过 1。
+    medium-probability: 0
+    high-probability: 0
+
+    # 固定轮次路由（可选）。assistant 消息数能被对应值整除时触发。
+    # HIGH 固定轮次优先于 MEDIUM 固定轮次。
+    high-rounds: 25
+    medium-rounds: 50
+
+    # DIRECT 命中时默认注入首轮说明 Prompt。
+    # 显式设为 false 可关闭，仅保留模型切换。
+    direct-prompt-enabled: true
+
+    # 当最新 assistant 消息包含【Review】或【Plan】标记时，
+    # 是否追加防复述指令。默认关闭。
+    anti-repetition-prompt-enabled: false
+
+    # DIRECT 请求包含图片时，是否注入图片理解提示。
+    # 默认开启，用于让后续不支持图片的模型继续处理。
+    image-prompt-enabled: true
+
+# 日志配置。
+log:
+  # 未设置时只输出到标准错误；设置后同时输出到文件和标准错误。
+  file: ./log/smart-coder-switch.log
+  # 可选值：debug、info、warn、error。
+  level: info
+
+# 原始请求和路由决策 Trace（始终启用）。
 trace:
-  # 最多保留多少条记录。
+  # 最多保留的 Trace 条数。
   max-records: 100
-
   # 单个请求允许保存的最大字节数。
   max-body-size: 20971520
-
   # Trace 保存目录。
   directory: ./log/traces
 
-# Trace 子目录示例：
-#
-#   ./log/traces/20260716-151230.123456789-000001/
-
 # 决策日志 SQLite 数据库（用于 Web 控制台）。
 sqlite:
-  # SQLite 数据库文件路径。
-  #
-  # 用于存储路由决策摘要，供 Web 控制台查询和统计。
-  # 父目录会自动创建。
+  # 数据库文件路径；父目录会自动创建。
   path: ./data/decisions.db
-
-  # 最多保留多少条决策记录。
-  #
-  # 超过此数量时自动清理最旧记录。
-  # 与 trace.max-records 共享上限，同步清理。
+  # 最多保留的决策记录条数，超过后清理最旧记录。
   max-records: 1000
+
+# 系统注入消息过滤前缀（可选）。
+#
+# 当最后一条用户消息以任一前缀开头时，不触发 direct-model 的 DIRECT 路由。
+# 未配置时使用下面两个默认前缀；配置为空列表 [] 表示关闭过滤。
+# ignored-user-input-prefixes:
+#   - <system-reminder>
+#   - '[Compressed conversation section]'
